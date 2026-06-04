@@ -140,13 +140,14 @@ def session_rows(active_after: int, show_all: bool = False) -> list[dict[str, st
         idle_seconds = seconds_since(last_active, now)
         if idle_seconds is None:
             idle_seconds = seconds_since(session.get("started_at"), now)
+        active_label = "working" if status == "busy" else age(last_active, now)
         rows.append(
             {
                 "id": session_key(session),
                 "cli": cli_name(session),
                 "status": status,
                 "project": project_name(str(session.get("cwd", "-"))),
-                "active": age(last_active, now),
+                "active": active_label,
                 "idle_seconds": "" if idle_seconds is None else str(idle_seconds),
                 "pid": str(session.get("pid", "-")),
                 "tty": str(session.get("tty") or ""),

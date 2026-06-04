@@ -11,6 +11,7 @@ from cli_monitor.cli import (
     elapsed_between,
     prune_done_or_gone_sessions,
     render_sessions,
+    session_rows,
 )
 
 
@@ -107,6 +108,29 @@ class ElapsedBetweenTest(TestCase):
 
 
 class RenderSessionsTest(TestCase):
+    def test_busy_session_uses_working_active_label(self) -> None:
+        now = datetime.now(timezone.utc)
+        session = {
+            "id": "session-1",
+            "command": ["codex"],
+            "cwd": "/tmp/cli-monitor",
+            "pid": 123,
+            "started_at": (now - timedelta(seconds=60)).isoformat(),
+            "last_output_at": (now - timedelta(seconds=1)).isoformat(),
+            "last_input_at": (now - timedelta(seconds=10)).isoformat(),
+            "ended_at": None,
+        }
+
+        with (
+            patch("cli_monitor.cli.read_sessions", return_value=[session]),
+            patch("cli_monitor.cli.pid_alive", return_value=True),
+        ):
+            rows = session_rows(active_after=5)
+
+        self.assertEqual(rows[0]["status"], "busy")
+        self.assertEqual(rows[0]["active"], "working")
+        self.assertTrue(rows[0]["idle_seconds"].isdigit())
+
     def test_rendered_columns_follow_tui_order(self) -> None:
         rows = [
             {
