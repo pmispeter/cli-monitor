@@ -56,7 +56,9 @@ interactive CLIs may work too, but they are not treated as supported targets
 yet.
 
 For a working local setup, use `setup.sh` to install the package. It also
-offers optional desktop helper dependencies used by session focusing.
+offers optional desktop helper dependencies used by session focusing, and can
+optionally add shell functions so `codex` and `claude` are monitored
+automatically.
 
 Reliable window jumping depends on launching monitored sessions inside `tmux`.
 Without tmux, `cli-monitor` can still try to focus a matching terminal window
@@ -91,6 +93,11 @@ Recommended on Ubuntu/Debian:
 ./setup.sh
 ```
 
+During interactive setup, the script asks before adding shell functions to your
+shell rc file (`~/.bashrc` on Linux). If you accept, plain `codex` and `claude`
+commands will run through `cli-monitor` automatically, so you do not have to
+type `cli-monitor run -- ...` every time.
+
 Manual install from a local checkout:
 
 ```bash
@@ -103,6 +110,15 @@ If you install manually and want session focusing, install `xdotool`,
 `x11-utils`, and `tmux` yourself.
 
 ## Quick Start
+
+If you enabled shell wrappers during setup, start your usual CLI directly:
+
+```bash
+codex
+claude
+```
+
+Without shell wrappers, start monitored sessions explicitly:
 
 Run a monitored Codex session:
 
@@ -195,7 +211,9 @@ cli-monitor prune
 
 ## Shell Aliases
 
-For day-to-day use, wrap your agent CLIs with shell functions:
+For day-to-day use, wrap your agent CLIs with shell functions. `setup.sh` can
+add these for you after confirmation when it finds `codex` or `claude` in
+`PATH`.
 
 ```bash
 codex() {

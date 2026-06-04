@@ -218,11 +218,54 @@ append_rc_wrappers() {
   log "Added cli-monitor wrappers to ${rc_file}."
 }
 
+maybe_append_rc_wrappers() {
+  local rc_file="$1"
+  local cli_monitor_bin="$2"
+  local codex_bin="$3"
+  local claude_bin="$4"
+  local reply
+
+  if [[ -z "$codex_bin" && -z "$claude_bin" ]]; then
+    log "No codex or claude executable found in PATH; no shell wrappers can be added."
+    return
+  fi
+
+  if rc_file_has_wrapper "$rc_file"; then
+    log "${rc_file} already contains a cli-monitor wrapper; leaving it unchanged."
+    return
+  fi
+
+  if [[ ! -t 0 ]]; then
+    log "Skipping shell wrappers in non-interactive setup."
+    return
+  fi
+
+  log "cli-monitor can add shell functions to ${rc_file} so plain 'codex' and 'claude' commands are monitored automatically."
+  printf 'Add cli-monitor shell wrappers now? [y/N] '
+  if ! read -r reply; then
+    log "Skipping shell wrappers."
+    return
+  fi
+
+  case "$reply" in
+    [Yy]|[Yy][Ee][Ss])
+      append_rc_wrappers "$rc_file" "$cli_monitor_bin" "$codex_bin" "$claude_bin"
+      ;;
+    *)
+      log "Skipping shell wrappers. You can still run monitored sessions with: cli-monitor run -- <command>"
+      ;;
+  esac
+}
+
 main() {
   local rc_file
   local codex_bin=""
   local claude_bin=""
   local cli_monitor_bin
+
+  if [[ "$#" -gt 0 ]]; then
+    fail "unexpected arguments: $*"
+  fi
 
   rc_file="$(detect_rc_file)"
   codex_bin="$(resolve_command codex)"
@@ -233,9 +276,13 @@ main() {
   install_optional_focus_dependencies
   install_with_pipx
   cli_monitor_bin="$(resolve_cli_monitor)"
-  append_rc_wrappers "$rc_file" "$cli_monitor_bin" "$codex_bin" "$claude_bin"
+  maybe_append_rc_wrappers "$rc_file" "$cli_monitor_bin" "$codex_bin" "$claude_bin"
 
-  log "Done. Open a new shell or run: source ${rc_file}"
+  if rc_file_has_wrapper "$rc_file"; then
+    log "Done. Open a new shell or run: source ${rc_file}"
+  else
+    log "Done. Start monitored sessions with: cli-monitor run -- <command>"
+  fi
 }
 
 main "$@"
