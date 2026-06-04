@@ -5,6 +5,7 @@ PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PACKAGE_NAME="cli-monitor"
 MARKER_BEGIN="# >>> cli-monitor wrappers >>>"
 MARKER_END="# <<< cli-monitor wrappers <<<"
+PYTHON_MIN_VERSION="3.10"
 
 log() {
   printf '%s\n' "$*"
@@ -17,6 +18,21 @@ fail() {
 
 require_command() {
   command -v "$1" >/dev/null 2>&1 || fail "missing required command: $1"
+}
+
+require_python() {
+  require_command python3
+
+  if ! python3 - "$PYTHON_MIN_VERSION" <<'PY'
+import sys
+
+minimum = tuple(int(part) for part in sys.argv[1].split("."))
+if sys.version_info < minimum:
+    raise SystemExit(1)
+PY
+  then
+    fail "python3 ${PYTHON_MIN_VERSION}+ is required."
+  fi
 }
 
 run_privileged() {
@@ -33,8 +49,15 @@ install_pipx() {
     return
   fi
 
+  if [[ "$(uname -s)" == "Linux" ]] && command -v apt-get >/dev/null 2>&1; then
+    log "Installing required Python app installer: pipx"
+    run_privileged apt-get update
+    run_privileged apt-get install -y pipx
+    return
+  fi
+
   if command -v brew >/dev/null 2>&1; then
-    log "Installing Python app installer: pipx"
+    log "Installing required Python app installer: pipx"
     brew install pipx
     return
   fi
@@ -42,45 +65,61 @@ install_pipx() {
   fail "missing required command: pipx. Install pipx with your system package manager and rerun setup.sh."
 }
 
-install_system_dependencies() {
+install_optional_focus_dependencies() {
   if [[ "$(uname -s)" != "Linux" ]]; then
     return
   fi
 
-  if command -v apt-get >/dev/null 2>&1; then
-    local packages=()
+  local missing_commands=()
+  local packages=()
 
-    if ! command -v pipx >/dev/null 2>&1; then
-      packages+=(pipx)
-    fi
+  if ! command -v xdotool >/dev/null 2>&1; then
+    missing_commands+=("xdotool")
+    packages+=("xdotool")
+  fi
+  if ! command -v xprop >/dev/null 2>&1; then
+    missing_commands+=("xprop (from x11-utils)")
+    packages+=("x11-utils")
+  fi
+  if ! command -v tmux >/dev/null 2>&1; then
+    missing_commands+=("tmux")
+    packages+=("tmux")
+  fi
 
-    if ! command -v xdotool >/dev/null 2>&1; then
-      packages+=(xdotool)
-    fi
-    if ! command -v xprop >/dev/null 2>&1; then
-      packages+=(x11-utils)
-    fi
-
-    if [[ "${#packages[@]}" -eq 0 ]]; then
-      return
-    fi
-
-    log "Installing setup dependencies: ${packages[*]}"
-    run_privileged apt-get update
-    run_privileged apt-get install -y "${packages[@]}"
+  if [[ "${#missing_commands[@]}" -eq 0 ]]; then
     return
   fi
 
-  if ! command -v pipx >/dev/null 2>&1; then
-    fail "missing required command: pipx. Install pipx with your system package manager and rerun setup.sh."
-  fi
+  log "Optional window-jumping helpers are missing: ${missing_commands[*]}"
+  log "Install these only if you want cli-monitor to focus terminal windows or restore tmux panes automatically."
 
-  if command -v xdotool >/dev/null 2>&1 &&
-    command -v xprop >/dev/null 2>&1; then
+  if ! command -v apt-get >/dev/null 2>&1; then
+    log "Skipping optional helpers. Install ${missing_commands[*]} with your system package manager if you need window jumping."
     return
   fi
 
-  log "Window focus helpers are missing. Install xdotool and xprop with your system package manager."
+  if [[ ! -t 0 ]]; then
+    log "Skipping optional helpers in non-interactive setup."
+    return
+  fi
+
+  local reply
+  printf 'Install optional window-jumping helpers now? [y/N] '
+  if ! read -r reply; then
+    log "Skipping optional helpers."
+    return
+  fi
+
+  case "$reply" in
+    [Yy]|[Yy][Ee][Ss])
+      log "Installing optional window-jumping helpers: ${packages[*]}"
+      run_privileged apt-get update
+      run_privileged apt-get install -y "${packages[@]}"
+      ;;
+    *)
+      log "Skipping optional window-jumping helpers. cli-monitor will still install and run without automatic window jumping."
+      ;;
+  esac
 }
 
 detect_rc_file() {
@@ -189,8 +228,9 @@ main() {
   codex_bin="$(resolve_command codex)"
   claude_bin="$(resolve_command claude)"
 
-  install_system_dependencies
+  require_python
   install_pipx
+  install_optional_focus_dependencies
   install_with_pipx
   cli_monitor_bin="$(resolve_cli_monitor)"
   append_rc_wrappers "$rc_file" "$cli_monitor_bin" "$codex_bin" "$claude_bin"

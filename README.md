@@ -55,8 +55,8 @@ and tested. Because `cli-monitor` wraps commands through a PTY, other
 interactive CLIs may work too, but they are not treated as supported targets
 yet.
 
-For a working local setup, use `setup.sh` to install the package and the desktop
-helper dependencies used by session focusing.
+For a working local setup, use `setup.sh` to install the package. It also
+offers optional desktop helper dependencies used by session focusing.
 
 Reliable window jumping depends on launching monitored sessions inside `tmux`.
 Without tmux, `cli-monitor` can still try to focus a matching terminal window
@@ -69,11 +69,15 @@ pane.
 - Linux
 - `textual` for the watch TUI, installed automatically from `pyproject.toml`
 
-Desktop focus helpers installed by `setup.sh` on Ubuntu/Debian:
+Optional desktop focus helpers prompted by `setup.sh` on Ubuntu/Debian:
 
 - `xdotool`
 - `x11-utils` / `xprop`
 - `tmux`, required for reliable window/pane jumping
+
+You can skip those optional helpers during setup. `cli-monitor` still installs
+and tracks sessions, but automatic terminal focusing and tmux pane restoration
+will be limited or unavailable.
 
 The focus feature is local-desktop oriented. It can raise local terminal windows
 on supported Linux/X11 desktops, but it cannot focus a terminal on your laptop
