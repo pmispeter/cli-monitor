@@ -2,15 +2,32 @@
 
 Monitor multiple Claude/Codex-style CLI sessions from one terminal.
 
-`cli-monitor` is a small local-only tool. It wraps interactive CLI commands in a
-PTY, records lightweight session metadata, and shows which sessions are new,
-busy, waiting, finished, or gone. It does not require network access or call any
-external service; the wrapped CLI may still use the network as usual. It is
-primarily built for Claude Code and OpenAI Codex CLI sessions, and is useful
-when you run several long-lived agent CLI sessions and want a small dashboard
-for "which one needs attention now?"
+`cli-monitor` is a small local-only tool for people who keep several agent CLI
+sessions running at once. It wraps interactive CLI commands in a PTY, records
+lightweight session metadata, and shows which sessions are new, busy, waiting,
+finished, or gone. It does not require network access or call any external
+service; the wrapped CLI may still use the network as usual.
 
 [中文 README](README_cn.md)
+
+## Why this exists
+
+When you open more and more Codex or Claude Code terminals across different
+projects, it becomes easy to lose track of them. One terminal may have finished
+its task and be waiting for your review, another may be stuck waiting for a
+confirmation, and another may still be actively producing output. Without a
+shared view, you have to switch through every terminal just to answer "which
+agent needs me now?"
+
+`cli-monitor` is built for that workflow. Run your agent commands through
+`cli-monitor run -- ...`, then use `cli-monitor list` or `cli-monitor watch` to
+see the current state of all monitored sessions from one place. The goal is not
+to replace Codex or Claude Code; it is to make multi-terminal agent development
+easier to supervise.
+
+## Preview
+
+![cli-monitor watch TUI showing live sessions](docs/assets/snapshot.jpg)
 
 ## Features
 
@@ -18,6 +35,7 @@ for "which one needs attention now?"
 - Track Claude and Codex sessions without capturing full terminal transcripts.
 - Show live session state, project directory, PID, last visible activity, and
   runtime.
+- Quickly see which sessions are waiting for your next action.
 - Open a live Textual TUI with keyboard navigation and automatic refresh.
 - Focus the selected local terminal window on Linux/X11 when window helpers are
   available.
