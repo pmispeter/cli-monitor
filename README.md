@@ -19,11 +19,14 @@ confirmation, and another may still be actively producing output. Without a
 shared view, you have to switch through every terminal just to answer "which
 agent needs me now?"
 
-`cli-monitor` is built for that workflow. Run your agent commands through
-`cli-monitor run -- ...`, then use `cli-monitor list` or `cli-monitor watch` to
-see the current state of all monitored sessions from one place. The goal is not
-to replace Codex or Claude Code; it is to make multi-terminal agent development
-easier to supervise.
+`cli-monitor` is built for that workflow. You can start monitored sessions
+explicitly with `cli-monitor run -- ...`. For day-to-day use, `./setup.sh` can
+inject shell wrappers so you keep typing plain `codex` or `claude` as usual,
+while monitoring happens automatically in the background. Then open the live
+dashboard from another terminal with `cli-monitor watch`, or use
+`cli-monitor list` for a quick status snapshot. The goal is not to replace
+Codex or Claude Code; it is to make multi-terminal agent development easier to
+supervise without changing your normal CLI habits.
 
 ## Preview
 
@@ -274,7 +277,8 @@ python3 -m cli_monitor.cli watch
 
 ## Limitations
 
-- Only sessions started through `cli-monitor run -- ...` are tracked.
+- Only sessions started through `cli-monitor run -- ...`, including shell
+  wrappers installed by `setup.sh`, are tracked.
 - Only Linux is supported right now, and the project has only been tested on
   Ubuntu.
 - Window focusing depends on local desktop support, `xdotool`/`xprop`, and tmux

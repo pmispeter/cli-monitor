@@ -16,11 +16,14 @@
 可能还在持续输出。没有一个统一视图时，你只能在多个终端之间来回切换，逐个
 确认“现在到底哪个 agent 需要我处理”。
 
-`cli-monitor` 就是为这个工作流准备的。把 agent 命令通过
-`cli-monitor run -- ...` 启动后，就可以用 `cli-monitor list` 或
-`cli-monitor watch` 从一个地方查看所有被监控会话的状态。它不是用来替代
-Codex 或 Claude Code，而是帮助你在多终端开发时更容易监督它们当前是否还在
-工作，还是已经在等待你的进一步操作。
+`cli-monitor` 就是为这个工作流准备的。你可以显式用
+`cli-monitor run -- ...` 启动被监控会话。日常使用时，也可以运行
+`./setup.sh` 注入 shell wrapper，这样你仍然像平时一样直接输入 `codex` 或
+`claude`，监控会在背后自动生效，不需要改变默认使用习惯。需要实时监控时，
+在另一个终端运行 `cli-monitor watch` 打开面板；只想快速看一眼状态时，可以
+使用 `cli-monitor list`。它不是用来替代 Codex 或 Claude Code，而是帮助你在
+多终端开发时更容易监督它们当前是否还在工作，还是已经在等待你的进一步操
+作。
 
 ## 效果截图
 
@@ -255,7 +258,8 @@ python3 -m cli_monitor.cli watch
 
 ## 已知限制
 
-- 只有通过 `cli-monitor run -- ...` 启动的会话会被跟踪。
+- 只有通过 `cli-monitor run -- ...` 启动的会话会被跟踪，包括 `setup.sh`
+  安装的 shell wrapper。
 - 目前只支持 Linux，并且只在 Ubuntu 上测试过。
 - 窗口聚焦依赖本地桌面环境、`xdotool`/`xprop`，可靠恢复目标位置还依赖
   tmux。
