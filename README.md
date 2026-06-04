@@ -27,7 +27,7 @@ easier to supervise.
 
 ## Preview
 
-![cli-monitor watch TUI showing live sessions](docs/assets/snapshot.jpg)
+![cli-monitor watch TUI showing live sessions](docs/assets/snapshot.png)
 
 ## Features
 
