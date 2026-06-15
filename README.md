@@ -36,8 +36,8 @@ supervise without changing your normal CLI habits.
 
 - Wrap any interactive command with `cli-monitor run -- ...`.
 - Track Claude and Codex sessions without capturing full terminal transcripts.
-- Show live session state, project directory, PID, last visible activity, and
-  runtime.
+- Show live session state, project directory, estimated last reply time, PID,
+  last visible activity, and runtime.
 - Quickly see which sessions are waiting for your next action.
 - Open a live Textual TUI with keyboard navigation and automatic refresh.
 - Focus the selected local terminal window on Linux/X11 when window helpers are

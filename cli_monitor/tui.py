@@ -289,8 +289,9 @@ class SessionsApp(App[None]):
         table.add_column("CLI")
         table.add_column("STATE")
         table.add_column("PROJECT")
-        table.add_column("LAST_ACTIVE")
+        table.add_column("LAST_REPLY")
         table.add_column(Text("PID", justify="right"), width=7)
+        table.add_column("LAST_ACTIVE")
         table.add_column("RUNTIME")
         self.refresh_sessions()
         self.set_interval(self.interval, self.refresh_sessions)
@@ -358,8 +359,9 @@ class SessionsApp(App[None]):
                 self._cell_text(row["cli"]),
                 self._status_text(row["status"], highlight_style),
                 self._cell_text(row["project"]),
-                self._cell_text(row["active"]),
+                self._cell_text(row["reply"]),
                 self._cell_text(row["pid"], justify="right"),
+                self._cell_text(row["active"]),
                 self._cell_text(row["runtime"], justify="right"),
                 key=row["id"],
             )

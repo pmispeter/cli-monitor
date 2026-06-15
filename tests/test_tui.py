@@ -12,6 +12,7 @@ def _session_row(session_id: str, project: str) -> dict[str, str]:
         "cli": "codex",
         "status": "busy",
         "project": project,
+        "reply": "12:34:56",
         "active": "00:00:01",
         "idle_seconds": "1",
         "pid": "123",

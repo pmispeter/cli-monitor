@@ -188,7 +188,8 @@ def run_wrapped(command: list[str]) -> int:
                 os.write(stdout_fd, data)
                 output_visible = _strip_echo(data, pending_echo)
                 if output_visible and time.monotonic() >= suppress_output_until:
-                    session.last_output_at = utc_now()
+                    now_iso = utc_now()
+                    session.last_output_at = now_iso
                     session.last_active_at = session.last_output_at
 
             if input_open and stdin_fd in readable:

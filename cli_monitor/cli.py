@@ -31,6 +31,17 @@ def age(value: str | None, now: datetime) -> str:
     return format_elapsed(seconds)
 
 
+def clock_time(value: str | None, now: datetime) -> str:
+    ts = parse_ts(value)
+    if ts is None:
+        return "-"
+    local_ts = ts.astimezone()
+    local_now = now.astimezone()
+    if local_ts.date() == local_now.date():
+        return local_ts.strftime("%H:%M:%S")
+    return local_ts.strftime("%m-%d %H:%M")
+
+
 def elapsed_between(start_value: str | None, end_value: str | None, now: datetime) -> str:
     start = parse_ts(start_value)
     if start is None:
@@ -140,13 +151,15 @@ def session_rows(active_after: int, show_all: bool = False) -> list[dict[str, st
         idle_seconds = seconds_since(last_active, now)
         if idle_seconds is None:
             idle_seconds = seconds_since(session.get("started_at"), now)
-        active_label = "working" if status == "busy" else age(last_active, now)
+        active_label = age(last_active, now)
+        reply_label = clock_time(last_active, now)
         rows.append(
             {
                 "id": session_key(session),
                 "cli": cli_name(session),
                 "status": status,
                 "project": project_name(str(session.get("cwd", "-"))),
+                "reply": reply_label,
                 "active": active_label,
                 "idle_seconds": "" if idle_seconds is None else str(idle_seconds),
                 "pid": str(session.get("pid", "-")),
@@ -172,16 +185,24 @@ def session_rows(active_after: int, show_all: bool = False) -> list[dict[str, st
 
 
 def render_sessions(rows: list[dict[str, str]], width: int, show_all: bool = False) -> list[str]:
-    table_width = max(54, width)
+    table_width = max(70, width)
     content_width = table_width - 4
     cli_width = 7
     status_width = 6
+    reply_width = 11
     active_width = 11
     pid_width = 7
     runtime_width = 11
     project_width = max(
         6,
-        content_width - cli_width - status_width - active_width - pid_width - runtime_width - 5,
+        content_width
+        - cli_width
+        - status_width
+        - reply_width
+        - pid_width
+        - active_width
+        - runtime_width
+        - 6,
     )
 
     def line(text: str = "") -> str:
@@ -195,8 +216,9 @@ def render_sessions(rows: list[dict[str, str]], width: int, show_all: bool = Fal
             f"{trim(row['cli'], cli_width):<{cli_width}}",
             f"{trim(row['status'], status_width):<{status_width}}",
             f"{trim(row['project'], project_width):<{project_width}}",
-            f"{trim(row['active'], active_width):>{active_width}}",
+            f"{trim(row['reply'], reply_width):>{reply_width}}",
             f"{trim(row['pid'], pid_width):>{pid_width}}",
+            f"{trim(row['active'], active_width):>{active_width}}",
             f"{trim(row['runtime'], runtime_width):>{runtime_width}}",
         )
         return line(" ".join(cells))
@@ -215,8 +237,9 @@ def render_sessions(rows: list[dict[str, str]], width: int, show_all: bool = Fal
         "cli": "CLI",
         "status": "STATE",
         "project": "PROJECT",
-        "active": "LAST_ACTIVE",
+        "reply": "LAST_REPLY",
         "pid": "PID",
+        "active": "LAST_ACTIVE",
         "runtime": "RUNTIME",
     }
     lines.append(format_row(header))

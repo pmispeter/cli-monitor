@@ -7,6 +7,7 @@ from unittest.mock import patch
 from cli_monitor.cli import (
     DEFAULT_WATCH_INTERVAL,
     build_parser,
+    clock_time,
     display_status,
     elapsed_between,
     prune_done_or_gone_sessions,
@@ -107,16 +108,37 @@ class ElapsedBetweenTest(TestCase):
         )
 
 
+class ClockTimeTest(TestCase):
+    def test_shows_time_for_today(self) -> None:
+        now = datetime(2026, 6, 3, 8, 0, 30, tzinfo=timezone.utc)
+        value = datetime(2026, 6, 3, 8, 0, 1, tzinfo=timezone.utc).isoformat()
+
+        self.assertEqual(
+            clock_time(value, now),
+            datetime(2026, 6, 3, 8, 0, 1, tzinfo=timezone.utc).astimezone().strftime("%H:%M:%S"),
+        )
+
+    def test_shows_date_and_time_for_previous_day(self) -> None:
+        now = datetime(2026, 6, 3, 8, 0, 30, tzinfo=timezone.utc)
+        value = datetime(2026, 6, 1, 8, 0, 1, tzinfo=timezone.utc).isoformat()
+
+        self.assertEqual(
+            clock_time(value, now),
+            datetime(2026, 6, 1, 8, 0, 1, tzinfo=timezone.utc).astimezone().strftime("%m-%d %H:%M"),
+        )
+
+
 class RenderSessionsTest(TestCase):
-    def test_busy_session_uses_working_active_label(self) -> None:
+    def test_busy_session_shows_reply_time_and_active_age(self) -> None:
         now = datetime.now(timezone.utc)
+        last_output_at = (now - timedelta(seconds=1)).isoformat()
         session = {
             "id": "session-1",
             "command": ["codex"],
             "cwd": "/tmp/cli-monitor",
             "pid": 123,
             "started_at": (now - timedelta(seconds=60)).isoformat(),
-            "last_output_at": (now - timedelta(seconds=1)).isoformat(),
+            "last_output_at": last_output_at,
             "last_input_at": (now - timedelta(seconds=10)).isoformat(),
             "ended_at": None,
         }
@@ -128,8 +150,33 @@ class RenderSessionsTest(TestCase):
             rows = session_rows(active_after=5)
 
         self.assertEqual(rows[0]["status"], "busy")
-        self.assertEqual(rows[0]["active"], "working")
+        self.assertEqual(rows[0]["reply"], clock_time(last_output_at, now))
+        self.assertEqual(rows[0]["active"], "00:00:01")
         self.assertTrue(rows[0]["idle_seconds"].isdigit())
+
+    def test_wait_session_shows_reply_time_and_active_age(self) -> None:
+        now = datetime.now(timezone.utc)
+        last_output_at = (now - timedelta(seconds=30)).isoformat()
+        session = {
+            "id": "session-1",
+            "command": ["codex"],
+            "cwd": "/tmp/cli-monitor",
+            "pid": 123,
+            "started_at": (now - timedelta(seconds=60)).isoformat(),
+            "last_output_at": last_output_at,
+            "last_input_at": (now - timedelta(seconds=50)).isoformat(),
+            "ended_at": None,
+        }
+
+        with (
+            patch("cli_monitor.cli.read_sessions", return_value=[session]),
+            patch("cli_monitor.cli.pid_alive", return_value=True),
+        ):
+            rows = session_rows(active_after=5)
+
+        self.assertEqual(rows[0]["status"], "wait")
+        self.assertEqual(rows[0]["reply"], clock_time(last_output_at, now))
+        self.assertEqual(rows[0]["active"], "00:00:30")
 
     def test_rendered_columns_follow_tui_order(self) -> None:
         rows = [
@@ -138,6 +185,7 @@ class RenderSessionsTest(TestCase):
                 "cli": "codex",
                 "status": "busy",
                 "project": "cli_monitor",
+                "reply": "12:34:56",
                 "active": "00:00:01",
                 "idle_seconds": "1",
                 "pid": "123",
@@ -148,9 +196,9 @@ class RenderSessionsTest(TestCase):
         lines = render_sessions(rows, width=100)
 
         self.assertIn("CLI     STATE  PROJECT", lines[3])
-        self.assertIn("LAST_ACTIVE     PID     RUNTIME", lines[3])
+        self.assertIn("LAST_REPLY     PID LAST_ACTIVE     RUNTIME", lines[3])
         self.assertIn("codex   busy   cli_monitor", lines[5])
-        self.assertIn("00:00:01     123    00:10:00", lines[5])
+        self.assertIn("12:34:56     123    00:00:01    00:10:00", lines[5])
 
 
 class PruneSessionsTest(TestCase):

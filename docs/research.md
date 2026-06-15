@@ -85,7 +85,7 @@ session 文件存放在：
 - 仅看输出流无法稳定区分“真实新输出”和“重绘”
 - 输入和输出时间在日常查看时区别不大，双列增加了扫描成本
 
-因此 UI 只展示 `LAST_ACTIVE`。`LAST_ACTIVE` 由可见屏幕输出驱动，状态在用户首次提交/控制输入后再根据 `LAST_ACTIVE` 判断。
+因此 UI 把 `LAST_ACTIVE` 作为状态信号展示，同时增加 `LAST_REPLY` 表示最近一次回复估计时间。`LAST_ACTIVE` 由可见屏幕输出驱动，状态在用户首次提交/控制输入后再根据 `LAST_ACTIVE` 判断。
 
 底层仍记录 `last_input_at`，表示最近一次提交/控制输入：
 
@@ -94,6 +94,8 @@ session 文件存放在：
 - Ctrl-D
 
 `LAST_ACTIVE` 表示最近一次可见屏幕输出，排除纯 echo、ANSI 控制序列、focus event、短时间重绘。
+
+`LAST_REPLY` 和 `LAST_ACTIVE` 使用同一个可见输出信号，但展示不同含义：`LAST_REPLY` 显示最近一次可见输出发生的钟表时间，`LAST_ACTIVE` 显示距那次输出已经过了多久。它用于回答“上一次完整反馈大约是什么时候”，不参与 `busy/wait` 状态计算。
 
 普通打字只记录为 `last_key_at`，暂不作为面板状态依据。
 
@@ -154,7 +156,7 @@ cli-monitor prune
 ### 当前列表字段
 
 ```text
-CLI     STATE  LAST_ACTIVE     PID PROJECT
+CLI     STATE  PROJECT       LAST_REPLY      PID LAST_ACTIVE     RUNTIME
 ```
 
 ### 已实现行为
@@ -167,7 +169,7 @@ CLI     STATE  LAST_ACTIVE     PID PROJECT
 - 默认隐藏 done/gone session
 - `prune` 清理 done/gone session
 - 排除普通按键、terminal echo、focus event 对 `LAST_ACTIVE` 的干扰
-- 展示单一 `LAST_ACTIVE` 列
+- 展示 `LAST_REPLY` 和 `LAST_ACTIVE`，其中状态计算仍只依赖 `LAST_ACTIVE`
 - 将长 cwd 替换为项目 basename
 - 使用 curses TUI 原地刷新 `watch` 界面
 
