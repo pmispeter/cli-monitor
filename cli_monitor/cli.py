@@ -8,7 +8,13 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from .store import delete_session, pid_alive, read_sessions
+from .store import (
+    delete_session,
+    delete_suppressed_session,
+    pid_alive,
+    prune_orphaned_suppressed_sessions,
+    read_sessions,
+)
 from .wrapper import run_wrapped
 
 
@@ -283,7 +289,7 @@ def watch_sessions(active_after: int, interval: float, show_all: bool = False) -
 def prunable_session_ids() -> list[str]:
     now = datetime.now(timezone.utc)
     session_ids: list[str] = []
-    for session in read_sessions():
+    for session in read_sessions(include_suppressed=True):
         status = display_status(session, now, active_after=5)
         if status in {"done", "gone"}:
             session_id = session.get("id")
@@ -296,7 +302,9 @@ def prune_done_or_gone_sessions() -> int:
     removed = 0
     for session_id in prunable_session_ids():
         delete_session(session_id)
+        delete_suppressed_session(session_id)
         removed += 1
+    prune_orphaned_suppressed_sessions()
     return removed
 
 

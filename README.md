@@ -163,6 +163,7 @@ Inside `cli-monitor watch`:
 | `r` | Refresh immediately |
 | `a` | Toggle active-only vs all sessions |
 | `c` | Clean done/gone sessions after confirmation |
+| `d` | Delete the selected record; active processes require confirmation |
 | `Enter` / `Space` | Focus the selected live session |
 
 Double-clicking a session row also tries to focus that session.
@@ -253,6 +254,11 @@ Session files contain metadata such as command arguments, working directories,
 PIDs, timestamps, terminal/window identifiers, tmux identifiers, and exit codes.
 They are not intended to store full command transcripts. `cli-monitor` does not
 send this data anywhere.
+
+When an active session record is deleted from the TUI, a suppression marker is
+stored under `$XDG_STATE_HOME/cli-monitor/deleted-sessions/` so wrapper updates
+do not make the record reappear. `cli-monitor prune` removes those markers once
+the corresponding session is done or gone.
 
 ## Development
 

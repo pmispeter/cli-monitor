@@ -90,3 +90,45 @@ class SessionsAppMouseFocusTest(IsolatedAsyncioTestCase):
                 await pilot.pause()
 
         self.assertEqual(focused_session_ids, ["session-2"])
+
+    async def test_delete_removes_selected_stale_session_without_confirmation(self) -> None:
+        rows = [
+            {**_session_row("session-1", "one"), "status": "wait"},
+        ]
+
+        with (
+            patch("cli_monitor.tui.session_rows", return_value=rows),
+            patch("cli_monitor.tui.pid_alive", return_value=False),
+            patch("cli_monitor.tui.delete_session") as delete_session,
+            patch("cli_monitor.tui.suppress_session") as suppress_session,
+        ):
+            app = SessionsApp(active_after=5, interval=10)
+            async with app.run_test(size=(100, 24)) as pilot:
+                await pilot.press("d")
+                await pilot.pause()
+
+        delete_session.assert_called_once_with("session-1")
+        suppress_session.assert_not_called()
+
+    async def test_delete_confirms_before_removing_active_session(self) -> None:
+        rows = [
+            _session_row("session-1", "one"),
+        ]
+
+        with (
+            patch("cli_monitor.tui.session_rows", return_value=rows),
+            patch("cli_monitor.tui.pid_alive", return_value=True),
+            patch("cli_monitor.tui.delete_session") as delete_session,
+            patch("cli_monitor.tui.suppress_session") as suppress_session,
+        ):
+            app = SessionsApp(active_after=5, interval=10)
+            async with app.run_test(size=(100, 24)) as pilot:
+                await pilot.press("d")
+                await pilot.pause()
+                delete_session.assert_not_called()
+
+                await pilot.press("y")
+                await pilot.pause()
+
+        suppress_session.assert_called_once_with("session-1", pid=123)
+        delete_session.assert_called_once_with("session-1")

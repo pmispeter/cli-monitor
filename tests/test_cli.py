@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import tempfile
 from datetime import datetime, timedelta, timezone
 from unittest import TestCase
 from unittest.mock import patch
@@ -13,6 +14,13 @@ from cli_monitor.cli import (
     prune_done_or_gone_sessions,
     render_sessions,
     session_rows,
+)
+from cli_monitor.store import (
+    Session,
+    delete_session,
+    is_suppressed_session,
+    suppress_session,
+    write_session,
 )
 
 
@@ -220,3 +228,97 @@ class PruneSessionsTest(TestCase):
         delete_session.assert_any_call("done-1")
         delete_session.assert_any_call("gone-1")
         self.assertEqual(delete_session.call_count, 2)
+
+
+class SuppressedSessionsTest(TestCase):
+    def test_suppressed_session_stays_hidden_after_wrapper_writes_it_again(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.dict("cli_monitor.store.os.environ", {"XDG_STATE_HOME": tmp}):
+                session = self._session("session-1", pid=123)
+                write_session(session)
+                suppress_session(session.id)
+
+                write_session(session)
+
+                with patch("cli_monitor.cli.pid_alive", return_value=True):
+                    self.assertEqual(session_rows(active_after=5, show_all=True), [])
+
+    def test_suppression_survives_refresh_before_wrapper_writes_again(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.dict("cli_monitor.store.os.environ", {"XDG_STATE_HOME": tmp}):
+                session = self._session("session-1", pid=123)
+                write_session(session)
+                suppress_session(session.id)
+                delete_session(session.id)
+
+                with patch("cli_monitor.cli.pid_alive", return_value=True):
+                    self.assertEqual(session_rows(active_after=5, show_all=True), [])
+
+                write_session(session)
+
+                with patch("cli_monitor.cli.pid_alive", return_value=True):
+                    self.assertEqual(session_rows(active_after=5, show_all=True), [])
+
+    def test_prune_cleans_suppressed_gone_session_and_tombstone(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.dict("cli_monitor.store.os.environ", {"XDG_STATE_HOME": tmp}):
+                session = self._session("session-1", pid=123)
+                write_session(session)
+                suppress_session(session.id)
+
+                with patch("cli_monitor.cli.pid_alive", return_value=False):
+                    removed = prune_done_or_gone_sessions()
+
+                self.assertEqual(removed, 1)
+                self.assertFalse(session.path.exists())
+                self.assertFalse(is_suppressed_session(session.id))
+
+    def test_prune_keeps_suppressed_live_session_tombstone(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.dict("cli_monitor.store.os.environ", {"XDG_STATE_HOME": tmp}):
+                session = self._session("session-1", pid=123)
+                write_session(session)
+                suppress_session(session.id)
+
+                with patch("cli_monitor.cli.pid_alive", return_value=True):
+                    removed = prune_done_or_gone_sessions()
+
+                self.assertEqual(removed, 0)
+                self.assertTrue(session.path.exists())
+                self.assertTrue(is_suppressed_session(session.id))
+
+    def test_prune_keeps_orphaned_suppression_when_recorded_pid_is_alive(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.dict("cli_monitor.store.os.environ", {"XDG_STATE_HOME": tmp}):
+                suppress_session("session-1", pid=123)
+
+                with patch("cli_monitor.store.pid_alive", return_value=True):
+                    removed = prune_done_or_gone_sessions()
+
+                self.assertEqual(removed, 0)
+                self.assertTrue(is_suppressed_session("session-1"))
+
+    def test_prune_cleans_orphaned_suppression_when_recorded_pid_is_gone(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.dict("cli_monitor.store.os.environ", {"XDG_STATE_HOME": tmp}):
+                suppress_session("session-1", pid=123)
+
+                with patch("cli_monitor.store.pid_alive", return_value=False):
+                    removed = prune_done_or_gone_sessions()
+
+                self.assertEqual(removed, 0)
+                self.assertFalse(is_suppressed_session("session-1"))
+
+    def _session(self, session_id: str, pid: int) -> Session:
+        now = datetime(2026, 6, 3, 8, 0, 0, tzinfo=timezone.utc).isoformat()
+        return Session(
+            id=session_id,
+            pid=pid,
+            command=["codex"],
+            cwd="/tmp/cli-monitor",
+            tty=None,
+            started_at=now,
+            updated_at=now,
+            last_output_at=now,
+            last_input_at=now,
+        )

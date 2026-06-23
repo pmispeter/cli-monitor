@@ -149,6 +149,7 @@ cli-monitor watch
 | `r` | 立即刷新 |
 | `a` | 切换“仅活跃会话”和“全部会话” |
 | `c` | 确认后清理 done/gone 会话文件 |
+| `d` | 删除选中记录；仍在运行的进程需要确认 |
 | `Enter` / `Space` | 聚焦选中的 live 会话 |
 
 双击某一行也会尝试聚焦对应会话。
@@ -235,6 +236,11 @@ $XDG_STATE_HOME/cli-monitor/sessions/
 会话文件包含命令参数、工作目录、PID、时间戳、终端/窗口标识、tmux 标识和
 退出码等元数据。它们不是完整命令 transcript 的存储位置，`cli-monitor` 也
 不会把这些数据发送到任何地方。
+
+如果在 TUI 中删除仍在运行的会话记录，`cli-monitor` 会在
+`$XDG_STATE_HOME/cli-monitor/deleted-sessions/` 下写入隐藏标记，避免
+wrapper 后续写回状态时让记录重新出现。对应会话变成 done 或 gone 后，
+`cli-monitor prune` 会清理这些隐藏标记。
 
 ## 开发
 

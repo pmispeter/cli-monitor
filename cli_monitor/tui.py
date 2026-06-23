@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Callable
+
 from rich.style import Style
 from rich.text import Text
 from textual import events
@@ -12,6 +14,7 @@ from textual.widgets import Button, DataTable, Footer, Header, Static
 
 from .cli import prune_done_or_gone_sessions, prunable_session_ids, session_rows
 from .focus import focus_session_window
+from .store import delete_session, pid_alive, suppress_session
 
 
 STATUS_STYLES = {
@@ -25,37 +28,37 @@ WAIT_HIGHLIGHT_SECONDS = 30
 ATTENTION_HIGHLIGHT_STYLE = "#f6d58a on #3a2f16"
 
 
-class ConfirmPruneScreen(ModalScreen[bool]):
+class ConfirmScreen(ModalScreen[bool]):
     CSS = """
-    ConfirmPruneScreen {
+    ConfirmScreen {
         align: center middle;
     }
 
-    #confirm-prune-dialog {
-        width: 56;
+    #confirm-dialog {
+        width: 62;
         height: auto;
         padding: 1 2;
         background: #151b22;
         border: thick #35506a;
     }
 
-    #confirm-prune-title {
+    #confirm-title {
         text-style: bold;
         color: #e6edf3;
         margin-bottom: 1;
     }
 
-    #confirm-prune-message {
+    #confirm-message {
         color: #d8dee9;
         margin-bottom: 1;
     }
 
-    #confirm-prune-actions {
+    #confirm-actions {
         height: auto;
         align-horizontal: center;
     }
 
-    #confirm-prune-actions Button {
+    #confirm-actions Button {
         width: 14;
         height: 3;
         margin: 0 1;
@@ -65,11 +68,11 @@ class ConfirmPruneScreen(ModalScreen[bool]):
         text-style: none;
     }
 
-    #confirm-prune-actions Button:hover {
+    #confirm-actions Button:hover {
         background: #2f4052;
     }
 
-    #confirm-prune-actions Button:focus {
+    #confirm-actions Button:focus {
         background: #2f5f8f;
         color: #f5fbff;
         text-style: bold;
@@ -86,7 +89,7 @@ class ConfirmPruneScreen(ModalScreen[bool]):
     """
 
     BINDINGS = [
-        Binding("y", "confirm", "Clean", show=False),
+        Binding("y", "confirm", "Confirm", show=False),
         Binding("n", "cancel", "Cancel", show=False),
         Binding("left", "focus_previous", "Previous", show=False),
         Binding("right", "focus_next", "Next", show=False),
@@ -95,23 +98,22 @@ class ConfirmPruneScreen(ModalScreen[bool]):
         Binding("escape", "cancel", "Cancel", show=False),
     ]
 
-    def __init__(self, stale_count: int) -> None:
+    def __init__(self, title: str, message: str, confirm_label: str) -> None:
         super().__init__()
-        self.stale_count = stale_count
+        self.confirm_title = title
+        self.message = message
+        self.confirm_label = confirm_label
 
     def compose(self) -> ComposeResult:
         yield Vertical(
-            Static("Clean done/gone sessions?", id="confirm-prune-title"),
-            Static(
-                f"This will delete {self.stale_count} done or gone session record(s).",
-                id="confirm-prune-message",
-            ),
+            Static(self.confirm_title, id="confirm-title"),
+            Static(self.message, id="confirm-message"),
             Horizontal(
-                Button("OK (Y)", id="confirm"),
+                Button(self.confirm_label, id="confirm"),
                 Button("Cancel (N)", id="cancel"),
-                id="confirm-prune-actions",
+                id="confirm-actions",
             ),
-            id="confirm-prune-dialog",
+            id="confirm-dialog",
         )
 
     def on_mount(self) -> None:
@@ -258,6 +260,7 @@ class SessionsApp(App[None]):
         Binding("r", "refresh", "Refresh"),
         Binding("a", "toggle_all", "All"),
         Binding("c", "prune", "Clean"),
+        Binding("d", "delete_session", "Delete"),
         Binding("enter", "focus_session", "Focus"),
         Binding("space", "focus_session", "Focus", show=False),
     ]
@@ -310,7 +313,36 @@ class SessionsApp(App[None]):
             self.notify("No done or gone sessions to clean.", title="Clean")
             return
 
-        self.push_screen(ConfirmPruneScreen(stale_count), self._prune_confirmed)
+        self.push_screen(
+            ConfirmScreen(
+                "Clean done/gone sessions?",
+                f"This will delete {stale_count} done or gone session record(s).",
+                "OK (Y)",
+            ),
+            self._prune_confirmed,
+        )
+
+    def action_delete_session(self) -> None:
+        row = self._current_row()
+        if row is None:
+            self.notify("No session selected.", title="Delete")
+            return
+
+        if self._row_process_alive(row):
+            project = row.get("project", "-")
+            pid = row.get("pid", "-")
+            self.push_screen(
+                ConfirmScreen(
+                    "Delete active session record?",
+                    f"{project} is still running as PID {pid}. "
+                    "This only deletes the monitor record.",
+                    "Delete (Y)",
+                ),
+                self._delete_confirmed(row),
+            )
+            return
+
+        self._delete_row(row, confirmed=False)
 
     def action_focus_session(self) -> None:
         table = self.query_one(HighlightDataTable)
@@ -342,6 +374,28 @@ class SessionsApp(App[None]):
         removed = prune_done_or_gone_sessions()
         self.refresh_sessions()
         self.notify(f"Removed {removed} done or gone session(s).", title="Clean")
+
+    def _delete_confirmed(self, selected_row: dict[str, str]) -> Callable[[bool | None], None]:
+        session_id = selected_row["id"]
+
+        def delete_if_confirmed(confirmed: bool | None) -> None:
+            if not confirmed:
+                return
+            row = self._rows_by_id.get(session_id, selected_row)
+            self._delete_row(row, confirmed=True)
+
+        return delete_if_confirmed
+
+    def _delete_row(self, row: dict[str, str], confirmed: bool) -> None:
+        session_id = row["id"]
+        if confirmed:
+            suppress_session(session_id, pid=self._row_pid(row))
+        delete_session(session_id)
+        self.refresh_sessions()
+        if confirmed:
+            self.notify("Deleted active session record.", title="Delete")
+        else:
+            self.notify("Deleted stale session record.", title="Delete")
 
     def refresh_sessions(self) -> None:
         rows = session_rows(self.active_after, self.show_all)
@@ -390,9 +444,31 @@ class SessionsApp(App[None]):
         except KeyError:
             return None
 
+    def _current_row(self) -> dict[str, str] | None:
+        table = self.query_one(HighlightDataTable)
+        row_key = self._current_row_key(table)
+        if row_key is None:
+            return None
+        row_id = self._row_key_value(row_key)
+        return self._rows_by_id.get(row_id)
+
     def _row_key_value(self, row_key: object) -> str:
         value = getattr(row_key, "value", row_key)
         return "" if value is None else str(value)
+
+    def _row_process_alive(self, row: dict[str, str]) -> bool:
+        pid = self._row_pid(row)
+        if pid is None:
+            return False
+        return pid_alive(pid)
+
+    def _row_pid(self, row: dict[str, str]) -> int | None:
+        if row.get("status") in {"done", "gone"}:
+            return None
+        try:
+            return int(row.get("pid", ""))
+        except ValueError:
+            return None
 
     def _restore_cursor(
         self,
